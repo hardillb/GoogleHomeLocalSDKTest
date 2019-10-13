@@ -16,9 +16,9 @@ const createResponse = (
 
 
 smarthomeApp
-  .onExecute(homeApp.executeHandler)
   .onIdentify(homeApp.identifyHandler)
   .onReachableDevices(homeApp.reachableDevicesHandler)
+  .onExecute(homeApp.executeHandler)
   // @ts-ignore
   .onProxySelected(req => {
     console.log("ProxySelected", JSON.stringify(req, null, 2));
@@ -27,4 +27,7 @@ smarthomeApp
   .listen()
   .then(() => {
     console.log("Up and Running")
+  })
+  .catch((e: Error) => {
+  	console.error(e);
   });

@@ -5,6 +5,7 @@ export class NodeRedApp {
 
   private ports: object = {};
   private paths: object = {};
+  private proxyDeviceID: string = "";
 
   constructor(private readonly app: smarthome.App) {
     this.app = app;
@@ -46,6 +47,7 @@ export class NodeRedApp {
         console.log("reachableDeviceHandler", JSON.stringify(reachableRequest, null, 2));
 
         const proxyDevice = reachableRequest.inputs[0].payload.device.proxyDevice;
+        this.proxyDeviceID = proxyDevice.id;
 
 
         const lookUpDevices = new smarthome.DataFlow.HttpRequestData();
@@ -90,6 +92,7 @@ export class NodeRedApp {
          return new Promise((resolve, reject) => {
            const executeHttpRequest = new smarthome.DataFlow.HttpRequestData();
            executeHttpRequest.requestId = executeRequest.requestId;
+           executeHttpRequest.deviceId = this.proxyDeviceID;
            executeHttpRequest.method = smarthome.Constants.HttpOperation.POST;
            executeHttpRequest.port = 3000;
            executeHttpRequest.isSecure = false;

@@ -85,6 +85,7 @@ export class NodeRedApp {
 
          const command = executeRequest.inputs[0].payload.commands[0];
          const id = command.devices[0].id;
+         const execution = command.execution[0];
 
          const executeResponse =  new smarthome.Execute.Response.Builder()
           .setRequestId(executeRequest.requestId);
@@ -97,6 +98,8 @@ export class NodeRedApp {
            executeHttpRequest.port = 3000;
            executeHttpRequest.isSecure = false;
            executeHttpRequest.path = "/google-home/localControl/1234/execute"
+           executeHttpRequest.data = JSON.stringify(execution);
+           executeHttpRequest.dataType = "application/json"
 
            this.app.getDeviceManager()
            .send(executeHttpRequest)

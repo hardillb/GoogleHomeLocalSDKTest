@@ -1,7 +1,9 @@
 const mdns = require('mdns');
 const express = require('express');
+const bodyParser = require('body-parser')
 const morgan = require('morgan');
 const mqtt = require('mqtt');
+const path = require('path');
 const fs = require('fs');
 
 const app = express();
@@ -35,9 +37,14 @@ const mqttOptions = {
   ]
 };
 
-const mqttCient = mqtt.connect(mqttOptions)
+const mqttClient = mqtt.connect(mqttOptions);
+
+mqttClient.on('error', (error) => {
+  console.log("mqtt error");
+});
 
 app.use(morgan('combined'));
+app.use(bodyParser.json());
 app.use(express.static('dist'));
 
 // const ad = mdns.createAdvertisement(mdns.makeServiceType('1234','gh-node-red','tcp'), 1880,{
@@ -50,8 +57,7 @@ const ad = mdns.createAdvertisement(mdns.tcp('gh-node-red'), port, {
 });
 ad.start();
 
-app.get('/google-home/localControl/:id/identify',(req,resp) => {
-	console.log("identify - ", req.params.id);
+app.get('/google-home/localControl/',(req,resp) => {
 	const devs = [
 		{verificationId: "4"}
 	];
@@ -60,11 +66,12 @@ app.get('/google-home/localControl/:id/identify',(req,resp) => {
 
 app.post('/google-home/localControl/:id/execute', (req,resp) =>{
   console.log("execute - ", req.body);
+
   const status = {
   	id: "4",
   	state: {
   		online: true,
-  		on: body.params
+  		on: req.body.params
   	}
   }
   resp.status(200).send()

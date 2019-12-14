@@ -3,9 +3,9 @@
 
 export class NodeRedApp {
 
-  private ports: object = {};
-  private paths: object = {};
-  private proxyDeviceID: string = "";
+  private port: number = 1880;
+  private path: string = "/google-home/localControl/";
+  private proxyDeviceID: string = "gh-node-red";
 
   constructor(private readonly app: smarthome.App) {
     this.app = app;
@@ -21,7 +21,11 @@ export class NodeRedApp {
       if (device.mdnsScanData === undefined) {
         throw Error(`indenty request is missing discovery response ${identifyRequest}`);
       }
-      //console.log(device.mdnsScanData);
+      console.log(device.mdnsScanData);
+
+      this.path = device.mdnsScanData.txt.path;
+      this.port = parseInt(device.mdnsScanData.txt.port);
+
 
       return new Promise((resolve, reject) => {
         const response: smarthome.IntentFlow.IdentifyResponse = {
@@ -29,7 +33,7 @@ export class NodeRedApp {
            requestId: identifyRequest.requestId,
            payload: {
              device: {
-               id: "gh-node-red",
+               id: this.proxyDeviceID,
                isProxy: true,
                isLocalOnly: true
              }
@@ -46,16 +50,15 @@ export class NodeRedApp {
       // return new Promise((resolve, reject) => {
         console.log("reachableDeviceHandler", JSON.stringify(reachableRequest, null, 2));
 
-        const proxyDevice = reachableRequest.inputs[0].payload.device.proxyDevice;
-        this.proxyDeviceID = proxyDevice.id;
+        const proxyDevice = reachableRequest.inputs[0].payload.device.id;
+        //this.proxyDeviceID = proxyDevice.id;
 
 
         const lookUpDevices = new smarthome.DataFlow.HttpRequestData();
         lookUpDevices.requestId = reachableRequest.requestId;
-        lookUpDevices.deviceId = proxyDevice.id;
-        lookUpDevices.path = "/google-home/localControl/1234/identify";
-        // this port number should come from the mDNS lookup
-        lookUpDevices.port = 3000;
+        lookUpDevices.deviceId = this.proxyDeviceID;
+        lookUpDevices.path = this.path;  //"/google-home/localControl/1234/identify";
+        lookUpDevices.port = this.port;
         lookUpDevices.isSecure = false;
         lookUpDevices.method = smarthome.Constants.HttpOperation.GET;
 
@@ -81,36 +84,44 @@ export class NodeRedApp {
 
   public executeHandler = async (executeRequest: smarthome.IntentFlow.ExecuteRequest):
        Promise<smarthome.IntentFlow.ExecuteResponse> => {
-         console.log("executeHandler",  JSON.stringify(executeRequest, null, 2));
+        console.log("executeHandler",  JSON.stringify(executeRequest, null, 2));
 
-         const command = executeRequest.inputs[0].payload.commands[0];
-         const id = command.devices[0].id;
-         const execution = command.execution[0];
+        const command = executeRequest.inputs[0].payload.commands[0];
+        const id = command.devices[0].id;
+        const execution = command.execution[0];
 
-         const executeResponse =  new smarthome.Execute.Response.Builder()
+        const executeResponse =  new smarthome.Execute.Response.Builder()
           .setRequestId(executeRequest.requestId);
 
-         return new Promise((resolve, reject) => {
-           const executeHttpRequest = new smarthome.DataFlow.HttpRequestData();
-           executeHttpRequest.requestId = executeRequest.requestId;
-           executeHttpRequest.deviceId = this.proxyDeviceID;
-           executeHttpRequest.method = smarthome.Constants.HttpOperation.POST;
-           executeHttpRequest.port = 3000;
-           executeHttpRequest.isSecure = false;
-           executeHttpRequest.path = "/google-home/localControl/1234/execute"
-           executeHttpRequest.data = JSON.stringify(execution);
-           executeHttpRequest.dataType = "application/json"
+        return new Promise((resolve, reject) => {
 
-           this.app.getDeviceManager()
-           .send(executeHttpRequest)
-           .then( result => {
-             const httpResults = result as smarthome.DataFlow.HttpResponseData;
-             if (httpResults.httpResponse.statusCode == 200) {
-               executeResponse.setSuccessState(id,{on: true});
-             } else {
-               executeResponse.setErrorState(id,"problem");
-             }
-             resolve(executeResponse.build());
+          console.log("Sending command to " + this.proxyDeviceID + " on port " + this.port);
+          console.log("and path " + this.path + id + "/execute");
+          console.log(JSON.stringify(execution));
+
+          const executeHttpRequest = new smarthome.DataFlow.HttpRequestData();
+          executeHttpRequest.requestId = executeRequest.requestId;
+          executeHttpRequest.deviceId = id;//this.proxyDeviceID;
+          executeHttpRequest.method = smarthome.Constants.HttpOperation.POST;
+          executeHttpRequest.port = this.port;
+          executeHttpRequest.isSecure = false;
+          executeHttpRequest.path = this.path  + id + "/execute";
+          executeHttpRequest.data = JSON.stringify(execution);
+          executeHttpRequest.dataType = "application/json";
+
+          console.log(executeRequest);
+
+          this.app.getDeviceManager()
+            .send(executeHttpRequest)
+            .then( result => {
+              console.log("excuteHandler http response");
+              const httpResults = result as smarthome.DataFlow.HttpResponseData;
+              if (httpResults.httpResponse.statusCode == 200) {
+                 executeResponse.setSuccessState(id,{on: true});
+              } else {
+                executeResponse.setErrorState(id,"problem");
+              }
+              resolve(executeResponse.build());
            })
 
       });

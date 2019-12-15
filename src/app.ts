@@ -5,7 +5,7 @@ export class NodeRedApp {
 
   private port: number = 1880;
   private path: string = "/google-home/localControl/";
-  private proxyDeviceID: string = "gh-node-red";
+  private proxyDeviceID: string = "";
 
   constructor(private readonly app: smarthome.App) {
     this.app = app;
@@ -25,7 +25,7 @@ export class NodeRedApp {
 
       this.path = device.mdnsScanData.txt.path;
       this.port = parseInt(device.mdnsScanData.txt.port);
-
+      this.proxyDeviceID = device.mdnsScanData.txt.id;
 
       return new Promise((resolve, reject) => {
         const response: smarthome.IntentFlow.IdentifyResponse = {
@@ -57,7 +57,7 @@ export class NodeRedApp {
         const lookUpDevices = new smarthome.DataFlow.HttpRequestData();
         lookUpDevices.requestId = reachableRequest.requestId;
         lookUpDevices.deviceId = this.proxyDeviceID;
-        lookUpDevices.path = this.path;  //"/google-home/localControl/1234/identify";
+        lookUpDevices.path = this.path + this.proxyDeviceID + "/identify";  //"/google-home/localControl/1234/identify";
         lookUpDevices.port = this.port;
         lookUpDevices.isSecure = false;
         lookUpDevices.method = smarthome.Constants.HttpOperation.GET;
@@ -67,7 +67,7 @@ export class NodeRedApp {
           .send(lookUpDevices)
           .then(result => {
             const httpResults = <smarthome.DataFlow.HttpResponseData>result; 
-            //console.log(httpResults.httpResponse.body);
+            console.log(httpResults.httpResponse.body);
 
             const response: smarthome.IntentFlow.ReachableDevicesResponse = {
               intent: smarthome.Intents.REACHABLE_DEVICES,
@@ -87,43 +87,83 @@ export class NodeRedApp {
         console.log("executeHandler",  JSON.stringify(executeRequest, null, 2));
 
         const command = executeRequest.inputs[0].payload.commands[0];
-        const id = command.devices[0].id;
+        //const id = command.devices[0].id;
         const execution = command.execution[0];
+
+        console.log(command);
 
         const executeResponse =  new smarthome.Execute.Response.Builder()
           .setRequestId(executeRequest.requestId);
 
-        return new Promise((resolve, reject) => {
+        const result = command.devices.map((dev) => {
 
-          console.log("Sending command to " + this.proxyDeviceID + " on port " + this.port);
-          console.log("and path " + this.path + id + "/execute");
-          console.log(JSON.stringify(execution));
+          const msg = {
+            id: dev.id,
+            requestId: executeRequest.requestId,
+            execution: execution,
+            local: true
+          };
+
+          console.log(msg);
 
           const executeHttpRequest = new smarthome.DataFlow.HttpRequestData();
           executeHttpRequest.requestId = executeRequest.requestId;
-          executeHttpRequest.deviceId = id;//this.proxyDeviceID;
+          executeHttpRequest.deviceId = dev.id; //this.proxyDeviceID;
           executeHttpRequest.method = smarthome.Constants.HttpOperation.POST;
           executeHttpRequest.port = this.port;
           executeHttpRequest.isSecure = false;
-          executeHttpRequest.path = this.path  + id + "/execute";
-          executeHttpRequest.data = JSON.stringify(execution);
+          executeHttpRequest.path = this.path  + this.proxyDeviceID + "/execute/" + dev.id;
+          executeHttpRequest.data = JSON.stringify(msg);
           executeHttpRequest.dataType = "application/json";
 
-          console.log(executeRequest);
+          return this.app.getDeviceManager()
+          .send(executeHttpRequest)
+          .then((result) => {
+            const httpResults = result as smarthome.DataFlow.HttpResponseData;
+            const state = JSON.parse(httpResults.httpResponse.body as string);
+            executeResponse.setSuccessState(result.deviceId, state);
+          })
+          .catch((err: smarthome.IntentFlow.HandlerError) => {
+            err.errorCode = err.errorCode || smarthome.IntentFlow.ErrorCode.INVALID_REQUEST;
+            executeResponse.setErrorState(dev.id, err.errorCode);
+          });
 
-          this.app.getDeviceManager()
-            .send(executeHttpRequest)
-            .then( result => {
-              console.log("excuteHandler http response");
-              const httpResults = result as smarthome.DataFlow.HttpResponseData;
-              if (httpResults.httpResponse.statusCode == 200) {
-                 executeResponse.setSuccessState(id,{on: true});
-              } else {
-                executeResponse.setErrorState(id,"problem");
-              }
-              resolve(executeResponse.build());
-           })
+        });
 
-      });
+        return Promise.all(result)
+        .then(() => executeResponse.build());
+
+      //   return new Promise((resolve, reject) => {
+
+      //     // console.log("Sending command to " + this.proxyDeviceID + " on port " + this.port);
+      //     // console.log("and path " + this.path + id + "/execute");
+      //     // console.log(JSON.stringify(execution));
+
+      //     const executeHttpRequest = new smarthome.DataFlow.HttpRequestData();
+      //     executeHttpRequest.requestId = executeRequest.requestId;
+      //     executeHttpRequest.deviceId = id;//this.proxyDeviceID;
+      //     executeHttpRequest.method = smarthome.Constants.HttpOperation.POST;
+      //     executeHttpRequest.port = this.port;
+      //     executeHttpRequest.isSecure = false;
+      //     executeHttpRequest.path = this.path  + id + "/execute";
+      //     executeHttpRequest.data = JSON.stringify(execution);
+      //     executeHttpRequest.dataType = "application/json";
+
+      //     this.app.getDeviceManager()
+      //       .send(executeHttpRequest)
+      //       .then( result => {
+      //         console.log("excuteHandler http response");
+      //         const httpResults = result as smarthome.DataFlow.HttpResponseData;
+      //         if (httpResults.httpResponse.statusCode == 200) {
+      //           var status = JSON.parse(httpResults.httpResponse.body as string);
+      //           console.log("execute response - " + status);
+      //           executeResponse.setSuccessState(id,status.state);
+      //         } else {
+      //           executeResponse.setErrorState(id,"transientError");
+      //         }
+      //         resolve(executeResponse.build());
+      //      })
+
+      // });
     }
 }

@@ -9,46 +9,11 @@ const fs = require('fs');
 const app = express();
 const port = 3000;
 
-const brokerHost = process.env.BROKER_HOST;
-const userName = process.env.USERNAME;
-const password = process.env.PASSWORD;
-
-if (!brokerHost || !userName || !password) {
-	console.log("need to set env vars")
-	process.exit(0);
-}
-
-const caPath = path.join(__dirname, "ca-chain.pem");
-const mqttOptions = {
-	username: userName,
-	password: password,
-	ca: [fs.readFileSync(caPath)],
-	servers:[
-    {
-      protocol: 'mqtts',
-      host: brokerHost,
-      port: 8883
-    },
-    {
-      protocol: 'mqtt',
-      host: brokerHost,
-      port: 1883
-    }
-  ]
-};
-
-const mqttClient = mqtt.connect(mqttOptions);
-
-mqttClient.on('error', (error) => {
-  console.log("mqtt error");
-});
-
 app.use(morgan('combined'));
 app.use(bodyParser.json());
 app.use(express.static('dist'));
 
-// const ad = mdns.createAdvertisement(mdns.makeServiceType('1234','gh-node-red','tcp'), 1880,{
-const ad = mdns.createAdvertisement(mdns.tcp('gh-node-red'), port, {
+const ad = mdns.createAdvertisement(mdns.tcp('gh-lc'), port, {
 	txtRecord: {
 		path: "/google-home/localControl/",
 		id: 1234,
@@ -57,24 +22,28 @@ const ad = mdns.createAdvertisement(mdns.tcp('gh-node-red'), port, {
 });
 ad.start();
 
-app.get('/google-home/localControl/',(req,resp) => {
+app.get('/google-home/localControl/:id/identify',(req,resp) => {
+  console.log("identify");
+  console.log(req.params.id);
 	const devs = [
 		{verificationId: "4"}
 	];
+  console.log(devs);
 	resp.send(devs);
 });
 
-app.post('/google-home/localControl/:id/execute', (req,resp) =>{
-  console.log("execute - ", req.body);
+app.post('/google-home/localControl/:conf/execute/:id', (req,resp) =>{
+  console.log("body - ", req.body);
+  console.log("conf - ", req.params.conf);
+  console.log("device id - " + req.params.id);
 
-  const status = {
-  	id: "4",
-  	state: {
-  		online: true,
-  		on: req.body.params
-  	}
+  req.body.execution.params.online = true;
+
+  var status = {
+  	id: "" + req.params.id,
+  	state: req.body.execution.params
   }
-  resp.status(200).send()
+  resp.status(200).send(status);
 });
 
 

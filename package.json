@@ -5,8 +5,8 @@
   "private": true,
   "dependencies": {
     "@google/local-home-sdk": "^0.2.1",
-    "body-parser": "^1.20.1",
-    "express": "^4.19.2",
+    "body-parser": "^1.20.3",
+    "express": "^4.21.0",
     "mdns": "^2.5.1",
     "morgan": "^1.9.1",
     "mqtt": "^4.3.7"
